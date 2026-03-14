@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegis-ddos-detector
+  labels:
+    app: aegis-detector
+    tier: security-edge
+spec:
+  replicas: 3 # PhD Scaling: High-availability for Critical Infrastructure
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: aegis-detector
+  template:
+    metadata:
+      labels:
+        app: aegis-detector
+    spec:
+      containers:
+      - name: detector
+        image: aegis-detector:latest 
+        imagePullPolicy: Never # Required for Minikube to use local Docker images
+        ports:
+        - containerPort: 5000
+        
+        # PhD Detail: Liveness and Readiness probes ensure the Smart Grid
+        # node only receives traffic when the TinyML model is fully initialized.
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          
+        # Resource constraints to justify the "Tiny" in TinyML
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aegis-service
+spec:
+  selector:
+    app: aegis-detector
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: NodePort # Better for local Minikube testing than LoadBalancer
